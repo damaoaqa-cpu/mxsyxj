@@ -31,9 +31,9 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      -  name: Setup Android SDK
-         uses: android-actions/setup-android@v3
-      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Install dependencies
         run: npm install
 
@@ -41,10 +41,10 @@ jobs:
         run: |
           mkdir -p www
           cp index.html www/
-          cp -r css www/
-          cp -r js www/
-          cp -r assets www/
-          cp manifest.json www/
+          cp -r css www/ || true
+          cp -r js www/ || true
+          cp -r assets www/ || true
+          cp manifest.json www/ || true
           echo "Web assets prepared in www/"
 
       - name: Add Android platform
@@ -67,15 +67,7 @@ jobs:
           MANIFEST=android/app/src/main/AndroidManifest.xml
           if [ -f "$MANIFEST" ]; then
             if ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
-              sed -i '/<\/manifest>/i \
-                <uses-permission android:name="android.permission.CAMERA" />\
-                <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\
-                <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\
-                <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\
-                <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\
-                <uses-permission android:name="android.permission.INTERNET" />\
-                <uses-feature android:name="android.hardware.camera" android:required="true" />\
-                <uses-feature android:name="android.hardware.camera.autofocus" />' "$MANIFEST"
+              sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-feature android:name="android.hardware.camera" android:required="true" />\n    <uses-feature android:name="android.hardware.camera.autofocus" />' "$MANIFEST"
             fi
           fi
 
@@ -83,14 +75,8 @@ jobs:
         run: |
           BUILD_GRADLE=android/app/build.gradle
           if [ -f "$BUILD_GRADLE" ]; then
-            # Add release build type with debug signing if not present
             if ! grep -q "signingConfig signingConfigs.debug" "$BUILD_GRADLE"; then
-              sed -i '/buildTypes {/a \
-                      release {\
-                          minifyEnabled false\
-                          proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"\
-                          signingConfig signingConfigs.debug\
-                      }' "$BUILD_GRADLE"
+              sed -i '/buildTypes {/a \        release {\n            minifyEnabled false\n            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"\n            signingConfig signingConfigs.debug\n        }' "$BUILD_GRADLE"
             fi
           fi
 
