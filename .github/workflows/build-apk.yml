@@ -1,40 +1,249 @@
-- name: Setup Node.js
-  uses: actions/setup-node@v4
-  with:
-    node-version: '20'
+name: Build Android APK
 
-- name: Setup Java
-  uses: actions/setup-java@v5
-  with:
-    distribution: temurin
-    java-version: '17'
+on:
+  push:
+  workflow_dispatch:
 
-- name: Setup Android SDK
-  uses: android-actions/setup-android@v4
-  with:
-    packages: ''
+jobs:
+  build-apk:
+    name: Build Mobile APK
+    runs-on: ubuntu-latest
 
-- name: Check Android SDK
-  run: |
-    echo "ANDROID_HOME=$ANDROID_HOME"
-    echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-    sdkmanager --version
+    steps:
+      # ==========================================
+      # 1. Checkout
+      # ==========================================
+      - name: Checkout
+        uses: actions/checkout@v4
 
-- name: Install Android SDK
-  run: |
-    sdkmanager "platform-tools"
-    sdkmanager "platforms;android-34"
-    sdkmanager "build-tools;34.0.0"
+      # ==========================================
+      # 2. Node.js
+      # ==========================================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-- name: Install Android NDK
-  run: |
-    sdkmanager "ndk;26.1.10909125"
+      # ==========================================
+      # 3. Java
+      # ==========================================
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
 
-- name: Install npm dependencies
-  run: npm install
+      # ==========================================
+      # 4. Android SDK
+      # ==========================================
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: ''
 
-- name: Add Android platform
-  run: npx cap add android
+      # ==========================================
+      # 5. Check Android environment
+      # ==========================================
+      - name: Check Android SDK
+        run: |
+          echo "========== Android Environment =========="
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo "========================================"
 
-- name: Sync Capacitor
-  run: npx cap sync android
+          echo "sdkmanager:"
+          sdkmanager --version
+
+          echo "java:"
+          java -version
+
+          echo "node:"
+          node --version
+
+          echo "npm:"
+          npm --version
+
+      # ==========================================
+      # 6. Install Android SDK packages
+      # ==========================================
+      - name: Install Android SDK
+        run: |
+          yes | sdkmanager --licenses || true
+
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-34"
+          sdkmanager "build-tools;34.0.0"
+
+      # ==========================================
+      # 7. Install Android NDK
+      # ==========================================
+      - name: Install Android NDK
+        run: |
+          sdkmanager "ndk;26.1.10909125"
+
+      # ==========================================
+      # 8. Check project files
+      # ==========================================
+      - name: Check project
+        run: |
+          echo "========== Project =========="
+          pwd
+          echo "============================="
+
+          echo "Root files:"
+          ls -la
+
+          echo "============================="
+          echo "package.json:"
+          cat package.json
+
+      # ==========================================
+      # 9. Install npm dependencies
+      # ==========================================
+      - name: Install npm dependencies
+        run: |
+          npm install
+
+      # ==========================================
+      # 10. Check Capacitor
+      # ==========================================
+      - name: Check Capacitor
+        run: |
+          echo "========== Capacitor =========="
+
+          echo "Capacitor version:"
+          npx cap --version
+
+          echo "==============================="
+          echo "Installed Capacitor packages:"
+          npm list @capacitor/core @capacitor/cli @capacitor/android || true
+
+      # ==========================================
+      # 11. Check Capacitor template files
+      # ==========================================
+      - name: Inspect Capacitor files
+        run: |
+          echo "========== Capacitor Files =========="
+
+          echo "capacitor.settings.gradle locations:"
+          find node_modules/@capacitor -name "capacitor.settings.gradle" -print || true
+
+          echo "settings.gradle locations:"
+          find node_modules/@capacitor -name "settings.gradle" -print || true
+
+          echo "Capacitor directories:"
+          find node_modules/@capacitor -maxdepth 3 -type d -print | head -100 || true
+
+      # ==========================================
+      # 12. Remove old Android directory
+      # ==========================================
+      - name: Prepare Android platform
+        run: |
+          if [ -d "android" ]; then
+            echo "Removing existing android directory..."
+            rm -rf android
+          fi
+
+      # ==========================================
+      # 13. Add Android platform
+      # ==========================================
+      - name: Add Android platform
+        run: |
+          npx cap add android
+
+      # ==========================================
+      # 14. Check generated Android project
+      # ==========================================
+      - name: Check generated Android project
+        run: |
+          echo "========== Android Project =========="
+
+          if [ ! -d "android" ]; then
+            echo "ERROR: android directory was not created."
+            exit 1
+          fi
+
+          echo "Android directory:"
+          ls -la android
+
+          echo "-------------------------------------"
+
+          echo "settings.gradle:"
+          if [ -f "android/settings.gradle" ]; then
+            cat android/settings.gradle
+          else
+            echo "ERROR: android/settings.gradle not found"
+          fi
+
+          echo "-------------------------------------"
+
+          echo "capacitor.settings.gradle:"
+          if [ -f "android/capacitor.settings.gradle" ]; then
+            cat android/capacitor.settings.gradle
+          else
+            echo "WARNING: android/capacitor.settings.gradle not found"
+          fi
+
+          echo "-------------------------------------"
+
+          echo "gradlew:"
+          ls -la android/gradlew || true
+
+      # ==========================================
+      # 15. Sync Capacitor
+      # ==========================================
+      - name: Sync Capacitor
+        run: |
+          npx cap sync android
+
+      # ==========================================
+      # 16. Copy web assets
+      # ==========================================
+      - name: Copy web assets
+        run: |
+          npx cap copy android
+
+      # ==========================================
+      # 17. Give Gradle permission
+      # ==========================================
+      - name: Make Gradle executable
+        run: |
+          chmod +x android/gradlew
+
+      # ==========================================
+      # 18. Check Gradle
+      # ==========================================
+      - name: Check Gradle
+        working-directory: android
+        run: |
+          ./gradlew --version
+
+      # ==========================================
+      # 19. Build Debug APK
+      # ==========================================
+      - name: Build Debug APK
+        working-directory: android
+        run: |
+          ./gradlew assembleDebug \
+            --no-daemon \
+            --stacktrace
+
+      # ==========================================
+      # 20. Build Release APK
+      # ==========================================
+      - name: Build Release APK
+        working-directory: android
+        run: |
+          ./gradlew assembleRelease \
+            --no-daemon \
+            --stacktrace
+
+      # ==========================================
+      # 21. Find APK
+      # ==========================================
+      - name: Find APK
+        run: |
+          echo "========== APK FILES =========="
+
+          if [ -d "android/app/build/outputs" ]; then
+            find
